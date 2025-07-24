@@ -7,10 +7,6 @@
 #include "i2c_device.h"
 #include "iot/thing_manager.h"
 #include "esp32_camera.h"
-//#include "no_audio_codec.h"
-#include "dummy_audio_codec.h"
-#include "audio_codecs/santa_audio_codec.h"
-#include "audio_codecs/no_audio_codec.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -20,14 +16,13 @@
 #include <esp_lcd_touch_ft5x06.h>
 #include <esp_lvgl_port.h>
 #include <lvgl.h>
-#include "driver/spi_common.h"
-#include "esp_private/periph_ctrl.h" 
+
 
 #define TAG "LichuangDevBoard"
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
-/*
+
 class Pca9557 : public I2cDevice {
 public:
     Pca9557(i2c_master_bus_handle_t i2c_bus, uint8_t addr) : I2cDevice(i2c_bus, addr) {
@@ -72,44 +67,6 @@ public:
         }
     }
 };
-*/
-
-/*
-class lichuangfakeaudiocodec : public DummyAudioCodec {
-    private:    
-    
-    public:
-        lichuangfakeaudiocodec(int input_sample_rate, int output_sample_rate)
-            : DummyAudioCodec(input_sample_rate, output_sample_rate) {}
-    
-        void EnableOutput(bool enable) override {
-            if (enable == output_enabled_) {
-                return;
-            }
-            if (enable) {
-                return;
-            } else {
-               // Nothing todo because the display io and PA io conflict
-            }
-        }
-    };
-*/
-
-
-class lichuangcodec : public SantaAudioCodec  {
-private:    
-
-public:
-    lichuangcodec(i2c_master_bus_handle_t i2c_bus, int input_sample_rate, int output_sample_rate,
-    gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din, uint8_t es7210_addr, bool input_reference)
-        : SantaAudioCodec(i2c_bus, input_sample_rate, output_sample_rate,
-                             mclk,  bclk,  ws,  dout,  din, es7210_addr, input_reference) {}
-
-    virtual void EnableOutput(bool enable) override {
-        SantaAudioCodec::EnableOutput(enable);
-    }
-};
-
 
 class LichuangDevBoard : public WifiBoard {
 private:
@@ -117,27 +74,11 @@ private:
     i2c_master_dev_handle_t pca9557_handle_;
     Button boot_button_;
     LcdDisplay* display_;
-    //Pca9557* pca9557_;
+    Pca9557* pca9557_;
     Esp32Camera* camera_;
-
-
-    //Reset SPI peripheral
-    bool spi_initialized_ = false;
-    bool display_initialized_ = false;
-
-    
-    void HardResetSpiPeripheral() {
-        periph_module_reset(PERIPH_SPI3_MODULE);
-        periph_module_enable(PERIPH_SPI3_MODULE);
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-
 
     void InitializeI2c() {
         // Initialize I2C peripheral
-        
-
         i2c_master_bus_config_t i2c_bus_cfg = {
             .i2c_port = (i2c_port_t)1,
             .sda_io_num = AUDIO_CODEC_I2C_SDA_PIN,
@@ -153,12 +94,10 @@ private:
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
 
         // Initialize PCA9557
-        //pca9557_ = new Pca9557(i2c_bus_, 0x19);
+        pca9557_ = new Pca9557(i2c_bus_, 0x19);
     }
 
     void InitializeSpi() {
-        spi_bus_free(SPI3_HOST);
-        HardResetSpiPeripheral();
         spi_bus_config_t buscfg = {};
         buscfg.mosi_io_num = GPIO_NUM_40;
         buscfg.miso_io_num = GPIO_NUM_NC;
@@ -210,16 +149,14 @@ private:
         panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
         panel_config.bits_per_pixel = 16;
         ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
-     
+        
         esp_lcd_panel_reset(panel);
-        //pca9557_->SetOutputState(0, 0);
+        pca9557_->SetOutputState(0, 0);
 
         esp_lcd_panel_init(panel);
         esp_lcd_panel_invert_color(panel, true);
         esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        esp_lcd_panel_disp_on_off(panel, true);
-        
         display_ = new SpiLcdDisplay(panel_io, panel,
                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
                                     {
@@ -232,7 +169,7 @@ private:
 #endif
                                     });
     }
-/*
+
     void InitializeTouch()
     {
         esp_lcd_touch_handle_t tp;
@@ -259,7 +196,7 @@ private:
         esp_lcd_touch_new_i2c_ft5x06(tp_io_handle, &tp_cfg, &tp);
         assert(tp);
 
-        Add touch input (for selected screen) 
+        /* Add touch input (for selected screen) */
         const lvgl_port_touch_cfg_t touch_cfg = {
             .disp = lv_display_get_default(), 
             .handle = tp,
@@ -267,10 +204,10 @@ private:
 
         lvgl_port_add_touch(&touch_cfg);
     }
-*/
+
     void InitializeCamera() {
         // Open camera power
-        //pca9557_->SetOutputState(2, 0);
+        pca9557_->SetOutputState(2, 0);
 
         camera_config_t config = {};
         config.ledc_channel = LEDC_CHANNEL_2;  // LEDC通道选择  用于生成XCLK时钟 但是S3不用
@@ -308,7 +245,7 @@ public:
         InitializeI2c();
         InitializeSpi();
         InitializeSt7789Display();
-        //InitializeTouch();
+        InitializeTouch();
         InitializeButtons();
         InitializeCamera();
 
@@ -319,46 +256,13 @@ public:
 #endif
         GetBacklight()->RestoreBrightness();
     }
-    /*
+
     virtual AudioCodec* GetAudioCodec() override {
         static CustomAudioCodec audio_codec(
             i2c_bus_, 
             pca9557_);
         return &audio_codec;
     }
-    */
-
-    /*
-    virtual AudioCodec* GetAudioCodec() override {
-         static SparkBotEs8311AudioCodec audio_codec(i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
-        return &audio_codec;
-    }
-    */
-    
-/*
-    virtual AudioCodec* GetAudioCodec() override {
-        static lichuangfakeaudiocodec audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE);
-        return &audio_codec;
-    }
-*/
-    
-
-    virtual AudioCodec* GetAudioCodec() override {
-        static lichuangcodec audio_codec(i2c_bus_, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN, AUDIO_CODEC_ES7210_ADDR, AUDIO_INPUT_REFERENCE);
-        return &audio_codec;
-    }
-
-
-/*
-    virtual AudioCodec* GetAudioCodec() override {
-        static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
-        return &audio_codec;
-    }
-*/
 
     virtual Display* GetDisplay() override {
         return display_;

@@ -25,9 +25,8 @@ BoxAudioCodec::BoxAudioCodec(void* i2c_master_handle, int input_sample_rate, int
     };
     data_if_ = audio_codec_new_i2s_data(&i2s_cfg);
     assert(data_if_ != NULL);
-    
-    // Output
 
+    // Output
     audio_codec_i2c_cfg_t i2c_cfg = {
         .port = (i2c_port_t)1,
         .addr = es8311_addr,
@@ -58,7 +57,6 @@ BoxAudioCodec::BoxAudioCodec(void* i2c_master_handle, int input_sample_rate, int
     output_dev_ = esp_codec_dev_new(&dev_cfg);
     assert(output_dev_ != NULL);
 
-
     // Input
     i2c_cfg.addr = es7210_addr;
     in_ctrl_if_ = audio_codec_new_i2c_ctrl(&i2c_cfg);
@@ -79,8 +77,8 @@ BoxAudioCodec::BoxAudioCodec(void* i2c_master_handle, int input_sample_rate, int
 }
 
 BoxAudioCodec::~BoxAudioCodec() {
-    //ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
-    //esp_codec_dev_delete(output_dev_);
+    ESP_ERROR_CHECK(esp_codec_dev_close(output_dev_));
+    esp_codec_dev_delete(output_dev_);
     ESP_ERROR_CHECK(esp_codec_dev_close(input_dev_));
     esp_codec_dev_delete(input_dev_);
 

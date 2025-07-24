@@ -7,7 +7,7 @@
 
 #include "application.h"
 #include "system_info.h"
-#include <esp_system.h>
+
 #define TAG "main"
 
 extern "C" void app_main(void)
@@ -25,8 +25,5 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     // Launch the application
-    esp_reset_reason_t reason = esp_reset_reason();
-    ESP_LOGI(TAG, "Reset reason: %d", reason);
-    
     Application::GetInstance().Start();
 }
